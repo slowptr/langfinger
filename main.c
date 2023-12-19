@@ -6,6 +6,8 @@
 int
 main ()
 {
+  printf ("langfinger v0.0.1\n");
+
   struct LF_Chrome_data_struct chrome_data;
   LF_Chrome_populate_data (&chrome_data);
 

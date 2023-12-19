@@ -83,25 +83,29 @@ LF_Utils__loop_through_dir (char *dir_path,
 void
 LF_Utils_read_file (char *path, char *out, int out_len)
 {
-  FILE *file = fopen (path, "rb");
-  if (file == NULL)
+  HANDLE file_handle = CreateFile (path, GENERIC_READ, 0, NULL, OPEN_EXISTING,
+                                   FILE_ATTRIBUTE_NORMAL, NULL);
+  if (file_handle == INVALID_HANDLE_VALUE)
     {
-      fprintf (stderr, "unable to open file: %s\n", path);
+      fprintf (stderr, "unable to open local state file (%lu)\n",
+               GetLastError ());
       exit (-1);
     }
 
-  size_t bytes_read = fread (out, 1, out_len, file);
-  if (bytes_read == 0)
+  DWORD bytes_read;
+  if (!ReadFile (file_handle, out, out_len, &bytes_read, NULL))
     {
-      fprintf (stderr, "unable to read local state file\n");
+      fprintf (stderr, "unable to read local state file (%lu)\n",
+               GetLastError ());
       exit (-1);
     }
-  fclose (file);
+
+  CloseHandle (file_handle);
 }
 
-void
+char *
 LF_Utils_find_str_in_range (char *str, const char *before_str,
-                            const char *after_str, char **out, int *out_len)
+                            const char *after_str, int *out_len)
 {
   char *start_ptr = strstr (str, before_str);
   if (start_ptr == NULL)
@@ -119,6 +123,9 @@ LF_Utils_find_str_in_range (char *str, const char *before_str,
     }
 
   *out_len = end_ptr - start_ptr;
-  *out = malloc (*out_len);
-  memcpy (*out, start_ptr, *out_len);
+  char *out = malloc (*out_len + 1);
+  strncpy (out, start_ptr, *out_len);
+  out[*out_len] = '\0';
+
+  return out;
 }

