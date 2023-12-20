@@ -32,6 +32,15 @@ main ()
       printf ("            %s\n", login_data->username_value);
       printf ("            %s\n", login_data->password_value);
     }
+  for (int i = 0; i < chrome_data.cookie_data_list->length; i++)
+    {
+      // cookies should probably be saved separately, depending on the profile
+      struct LF_Chrome_cookie_data_struct *cookie_data
+          = LF_Utils_arraylist_get (chrome_data.cookie_data_list, i);
+      printf ("[cookie] %s\n", cookie_data->host_key);
+      printf ("            %s\n", cookie_data->name);
+      printf ("            %s\n", cookie_data->value);
+    }
 
   LF_Chrome_free_data (&chrome_data);
   return 0;

