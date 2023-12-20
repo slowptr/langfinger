@@ -12,8 +12,9 @@ struct LF_SQLite_entry_struct
 
 void
 LF_SQLite_exec (char *db_path, const char *query,
-                void (*callback) (void *, struct LF_SQLite_entry_struct *),
-                void *data)
+                void (*callback) (char *, void *,
+                                  struct LF_SQLite_entry_struct *),
+                char *decrypted_key, void *data)
 {
   sqlite3 *db;
   sqlite3_stmt *stmt;
@@ -46,7 +47,7 @@ LF_SQLite_exec (char *db_path, const char *query,
           entry[i].value = strdup ((char *)sqlite3_column_text (stmt, i));
           entry[i].value_len = sqlite3_column_bytes (stmt, i);
         }
-      callback (data, entry);
+      callback (decrypted_key, data, entry);
       for (int i = 0; i < column_count; i++)
         {
           free (entry[i].value);

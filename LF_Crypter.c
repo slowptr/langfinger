@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// libcrypto.dll & libssl.dll (OpenSSL) are required for AES-256-GCM decryption
+#include <openssl/aes.h>
+#include <openssl/evp.h>
+
 #define LF_Crypter__CRYPT32_MODULE_NAME "crypt32.dll"
 
 typedef BOOL (WINAPI *LF_Crypter__crypt32_unprotect_data_t) (
@@ -99,4 +103,65 @@ LF_Crypter_decrypt_dpapi (char *encryption_key, int encryption_key_len,
     }
 
   return decrypted_data;
+}
+
+char *
+LF_Crypter_decrypt_aes_256_gcm (char *decrypted_key, char *iv, char *tag,
+                                int tag_len)
+{
+  EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new ();
+  if (ctx == NULL)
+    {
+      fprintf (stderr, "unable to create cipher context\n");
+      exit (-1);
+    }
+
+  if (!EVP_DecryptInit_ex (ctx, EVP_aes_256_gcm (), NULL,
+                           (unsigned char *)decrypted_key,
+                           (unsigned char *)iv))
+    {
+      fprintf (stderr, "unable to initialize cipher context\n");
+      exit (-1);
+    }
+
+  int len = 0;
+  unsigned char *decrypted_data = malloc (256); // for now
+  if (!EVP_DecryptUpdate (ctx, decrypted_data, &len, (unsigned char *)tag,
+                          tag_len))
+    {
+      fprintf (stderr, "unable to decrypt data\n");
+      exit (-1);
+    }
+
+  int final_len = 0;
+  EVP_DecryptFinal_ex (ctx, decrypted_data + len,
+                       &final_len); // fails but is right?
+
+  decrypted_data[len + final_len] = '\0';
+
+  EVP_CIPHER_CTX_free (ctx);
+  return (char *)decrypted_data; // unsigned/signed...
+}
+
+void
+LF_Crypter_separate_iv_tag (char *encrypted_data, int encrypted_data_len,
+                            char **iv, char **tag, int *tag_len)
+{
+  const size_t iv_len = 12;
+  const size_t iv_offset = 3;
+  *tag_len = (encrypted_data_len - iv_offset - iv_len) - AES_BLOCK_SIZE;
+
+  *iv = malloc (iv_len);
+  memcpy (*iv, encrypted_data + iv_offset, iv_len);
+
+  *tag = malloc (*tag_len);
+  if (encrypted_data_len >= AES_BLOCK_SIZE + iv_offset + iv_len)
+    {
+      memcpy (*tag, encrypted_data + iv_offset + iv_len, *tag_len);
+    }
+  else
+    {
+      fprintf (stderr, "unable to separate iv and tag\n");
+      exit (-1);
+    }
 }

