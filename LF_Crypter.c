@@ -132,13 +132,11 @@ LF_Crypter_decrypt_aes_256_gcm (char *decrypted_key, char *iv, char *tag,
       fprintf (stderr, "unable to decrypt data\n");
       exit (-1);
     }
-  printf ("len: %d\n", len);
 
   int final_len = 0;
   EVP_DecryptFinal_ex (ctx, decrypted_data + len,
                        &final_len); // fails but is right?
 
-  printf ("final_len: %d\n", final_len);
   decrypted_data = realloc (decrypted_data, len + final_len + 1);
   decrypted_data[len + final_len] = '\0';
 

@@ -220,8 +220,8 @@ LF_Chrome_populate_data (struct LF_Chrome_data_struct *out)
         const char *sql
             = "SELECT host_key, name, encrypted_value FROM cookies";
         LF_SQLite_exec (cookies_path, sql,
-                        LF_Chrome__cookies_db_search_callback,
-                        decrypted_key, out->cookie_data_list);
+                        LF_Chrome__cookies_db_search_callback, decrypted_key,
+                        out->cookie_data_list);
       }
     }
   free (encryption_key);
