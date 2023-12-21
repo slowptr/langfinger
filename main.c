@@ -11,16 +11,16 @@ main ()
   struct LF_Chrome_data_struct chrome_data;
   LF_Chrome_populate_data (&chrome_data);
 
-  if (chrome_data.profile_list->length == 0)
+  if (chrome_data.profile_data_list->length == 0)
     {
       printf ("No profiles found.\n");
       return 0;
     }
 
-  for (int i = 0; i < chrome_data.profile_list->length; i++)
+  for (int i = 0; i < chrome_data.profile_data_list->length; i++)
     {
       struct LF_Chrome_profile_data_struct *profile_data
-          = LF_Utils_arraylist_get (chrome_data.profile_list, i);
+          = LF_Utils_arraylist_get (chrome_data.profile_data_list, i);
 
       printf ("Profile: %s\n", profile_data->path);
       for (int i = 0; i < profile_data->login_data_list->length; i++)
@@ -33,8 +33,6 @@ main ()
         }
       for (int i = 0; i < profile_data->cookie_data_list->length; i++)
         {
-          // cookies should probably be saved separately, depending on the
-          // profile
           struct LF_Chrome_cookie_data_struct *cookie_data
               = LF_Utils_arraylist_get (profile_data->cookie_data_list, i);
           printf ("[cookie] %s\n", cookie_data->host_key);
